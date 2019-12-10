@@ -1,3 +1,4 @@
+extern crate rand;
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::net::TcpListener;
@@ -6,45 +7,85 @@ use std::io;
 use std::sync::mpsc::channel;
 use std::thread;
 
+
+
 fn main() {
-    let (sender, receiver) = channel::<i32>();
 
-    let addrip = "127.0.0.1:7875";
     let name = "alex";
+    let signature: Vec<u8> = (0..32).map(|_| { rand::random::<u8>() }).collect(); 
+    let init_request = [[1].to_vec(), Vec::clone(&signature), name.as_bytes().to_vec()].concat();
 
-    let initQuery = format!("login {} {}", name, addrip.clone());
     let mut stream = TcpStream::connect("127.0.0.1:7878").unwrap();
-    stream.write(initQuery.as_bytes()).unwrap();
+   
+    stream.write(init_request.as_ref()).unwrap();
     stream.flush().unwrap();
 
-    thread::spawn(move || {
-        let listener = TcpListener::bind(addrip).expect("cannot bind host");
-        for stream in listener.incoming() {
-            let mut stream = stream.unwrap();
-            let mut bytes = [0; 512];
-            stream.read(&mut bytes).unwrap();
-            println!("{}", std::str::from_utf8(&bytes).unwrap());
-            if(receiver.recv().unwrap() == -1) {
-                break;
-            }
-        }
-    });
+    start_connection_thread(&stream);
+
+
     loop {
         let mut input = String::new();
         
         match io::stdin().read_line(&mut input) {
             Ok(n) => {
-                if input.starts_with("stop") {
-                    sender.send(-1).unwrap();
-                    break;
+
+                let input_list : Vec<&str>= input.split(" ").collect();
+                match input_list[0] {
+                    "stop" => break,
+                    "msg" => {
+                        let message = input_list[1..].join(" ").as_bytes().to_vec();
+                        let message_size = u32_to_vec(message.len() as u32);
+                        
+                        let request = [
+                            Vec::clone(&signature),
+                            message_size,
+                            message
+                        ].concat();
+
+                        stream.write(&request).unwrap();
+                        stream.flush().unwrap();
+
+                        println!("{}> {}", name, input_list[1..].join(" "));
+                    },
+                    _ => println!("unknown command"),
                 }
-                let mut stream = TcpStream::connect("127.0.0.1:7878").unwrap();
-                stream.write(input.as_bytes()).expect("Cannot send command to server");
-                stream.flush().unwrap();
+                
             },
             Err(error) => {
                 println!("error: {}", error);
             }
         }
     }
+}
+
+fn start_connection_thread(stream : &TcpStream) {
+    let mut stream = TcpStream::try_clone(stream).unwrap();
+    thread::spawn(move || {
+        loop {
+            let mut buffer = [0; 1024];
+            let n = stream.read(&mut buffer).unwrap();
+            if n == 0 {
+                continue;
+            }
+            let name_size = vec_to_u32(&buffer[0..4].to_vec());
+            let message_size = vec_to_u32(&buffer[4..8].to_vec());
+            let name = buffer[8..(name_size as usize + 8)].to_vec();
+            let message = buffer[(name_size as usize + 8)..((name_size as usize + 8) + message_size as usize)].to_vec();
+            println!("{}> {}", std::str::from_utf8(&name).unwrap(), std::str::from_utf8(&message).unwrap());
+        }
+    });
+}
+
+fn u32_to_vec(num: u32) -> Vec<u8> {
+    let mask = (1 << 8) - 1;
+    vec![
+        (num & (mask << 24)) as u8,
+        (num & (mask << 16)) as u8,
+        (num & (mask << 8)) as u8,
+        (num & mask) as u8,
+    ]
+}
+
+pub fn vec_to_u32(data : &Vec<u8>) -> u32 {
+    ((data[0] as u32) << 24) + ((data[1] as u32) << 16) + ((data[2] as u32) << 8) + (data[3] as u32)
 }
