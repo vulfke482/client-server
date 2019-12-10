@@ -42,6 +42,7 @@ impl Server {
         match query_list[0]  {
             "login" => {
                 println!("stream address: {}", stream.peer_addr().unwrap());
+                println!("query_list[2].to_string() {}", query_list[2].to_string());
                 self.user_to_address.insert(query_list[1].to_string(), query_list[2].to_string());
             },
             "msg" => {
@@ -69,11 +70,9 @@ impl Server {
             },
             _ => {
                 println!("stream address: {}", stream.peer_addr().unwrap());
-                
                 stream.write(b"unknown command").unwrap();
             }
         }
-        println!("I am after match");
     }
 }
 
@@ -82,29 +81,10 @@ fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").expect("cannot bind to host");
     let mut server = Arc::new(Mutex::new(Server::new().unwrap()));
     for stream in listener.incoming() {
-        println!("new stream");
         let stream = stream.unwrap();
         let server = Arc::clone(&server);
-        // thread::spawn(move || {
-            let mut server = server.lock().unwrap();
-            server.requestHandler(stream);
-            println!("I am after request handler");
-        // });
+        let mut server = server.lock().unwrap();
+        server.requestHandler(stream);
     }
     
 }
-
-/*протокол
-    client
-    
-    login id
-
-    msg toid message
-
-    server
-
-    response
-
-    login -> "You are successfully logged in"
-    msg -> id>message
-*/

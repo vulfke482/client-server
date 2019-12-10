@@ -12,13 +12,13 @@ fn main() {
     let addrip = "127.0.0.1:7874";
     let name = "denis";
 
-    let initQuery = format!("login {} {}", name, addrip);
+    let initQuery = format!("login {} {}", name, addrip.clone());
     let mut stream = TcpStream::connect("127.0.0.1:7878").unwrap();
     stream.write(initQuery.as_bytes()).unwrap();
     stream.flush().unwrap();
 
     thread::spawn(move || {
-        let listener = TcpListener::bind("127.0.0.1:7874").expect("cannot bind host");
+        let listener = TcpListener::bind(addrip).expect("cannot bind host");
         for stream in listener.incoming() {
             let mut stream = stream.unwrap();
             let mut bytes = [0; 512];
