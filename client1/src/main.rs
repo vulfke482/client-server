@@ -13,7 +13,7 @@ fn main() {
 
     let name = "alex";
     let signature: Vec<u8> = (0..32).map(|_| { rand::random::<u8>() }).collect(); 
-    let init_request = [[1].to_vec(), Vec::clone(&signature), name.as_bytes().to_vec()].concat();
+    let init_request = [[1].to_vec(), Vec::clone(&signature),u32_to_vec(name.len() as u32), name.as_bytes().to_vec()].concat();
 
     let mut stream = TcpStream::connect("127.0.0.1:7878").unwrap();
    
