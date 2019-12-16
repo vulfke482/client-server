@@ -47,11 +47,23 @@ fn start_connection_thread(
         loop {
             thread::sleep(Duration::from_millis(200));
             println!("I am here in the loop)");
+            
             let mut connections = connections.lock().unwrap();
             let mut users       = users.lock().unwrap();
-            // if(receiver.recv().unwrap() == 1) {
-            //     break;
-            // }
+
+                        
+            let sum = |vector: &Vec<u8>| {
+                let mut ans = 0;
+                for elem in vector.iter() {
+                    ans += *elem as i32;
+                }
+                ans
+            };
+
+
+            connections.retain(|elem : &Vec<u8>, _| sum(elem) != 0);
+            users.retain(|elem : &Vec<u8>, _| sum(elem) != 0);
+
             println!("{}", connections.len());
             let mut messages = Vec::new();
             for (_, mut stream) in connections.iter() {
@@ -68,18 +80,46 @@ fn start_connection_thread(
                 }
             }
 
-
             for (signature, mut stream) in connections.iter() {
                 for (signature, message) in messages.iter() {
                     let signature = signature.to_vec();
-                    let responce = [
-                        u32_to_vec(users.get(&signature).unwrap().len() as u32),
-                        u32_to_vec(message.len() as u32),
-                        users.get(&signature).unwrap().to_vec(),
-                        message.to_vec()
-                    ].concat();
-                    stream.write(responce.as_ref()).unwrap();
-                    stream.flush().unwrap();
+                    let mut responceBuilder = Vec::new();
+
+                    if let Some(name) = users.get(&signature) {
+                        responceBuilder.push(u32_to_vec(name.len() as u32));
+                    }
+                    else {
+                        println!("Cannot find name by signature {:?}", signature);
+                        continue;
+                    }
+
+                    responceBuilder.push(u32_to_vec(message.len() as u32));
+
+                    if let Some(name) = users.get(&signature) {
+                        responceBuilder.push(name.to_vec());
+                    }
+                    else {
+                        println!("Cannot find name by signature {:?}", signature);
+                        continue;
+                    }
+
+                    responceBuilder.push(message.to_vec());
+
+                    let responce = responceBuilder.concat();
+
+                    match stream.write(responce.as_ref()) {
+                        Ok(_) => {
+                            match stream.flush() {
+                                Err(error) => {
+                                    println!("Something gone wrong: {}", error);
+                                },
+                                _ => {}
+                            }
+                        },
+                        Err(error) => {
+                            println!("Cannot write to stream");
+                        }
+                    }
                 }
             }
         }

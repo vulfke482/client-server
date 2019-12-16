@@ -44,8 +44,6 @@ fn main() {
 
                         stream.write(&request).unwrap();
                         stream.flush().unwrap();
-
-                        println!("{}> {}", name, input_list[1..].join(" "));
                     },
                     _ => println!("unknown command"),
                 }
